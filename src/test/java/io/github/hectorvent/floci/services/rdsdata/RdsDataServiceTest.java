@@ -764,6 +764,9 @@ class RdsDataServiceTest {
         return switch (engine) {
             case MYSQL, MARIADB -> "MySQL";
             case POSTGRES -> "PostgreSQL";
+            // Metadata-only engines never reach the Data API test harness.
+            case SQLSERVER_EE, SQLSERVER_SE, SQLSERVER_EX, SQLSERVER_WEB ->
+                    throw new IllegalStateException("metadata-only engine");
         };
     }
 
