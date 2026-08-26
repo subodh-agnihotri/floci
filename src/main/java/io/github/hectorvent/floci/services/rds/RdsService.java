@@ -867,7 +867,7 @@ public class RdsService implements Resettable, ResourceProvider {
             return JSON.writeValueAsString(Map.of(
                     "username", instance.getMasterUsername(),
                     "password", instance.getMasterPassword(),
-                    "engine", instance.getEngine().name().toLowerCase(),
+                    "engine", instance.getEngine().awsName(),
                     "host", instance.getEndpoint().address(),
                     "port", instance.getEndpoint().port(),
                     "dbname", instance.getDbName() == null ? "" : instance.getDbName(),
@@ -969,7 +969,7 @@ public class RdsService implements Resettable, ResourceProvider {
         instance.setStatus(DbInstanceStatus.AVAILABLE);
         if (optionGroupName != null && !optionGroupName.isBlank()) {
             validateInstanceOptionGroup(optionGroupName,
-                    instance.getEngine() == null ? null : instance.getEngine().name().toLowerCase(),
+                    instance.getEngine() == null ? null : instance.getEngine().awsName(),
                     instance.getEngineVersion(), effectiveRegion);
             instance.setOptionGroupName(optionGroupName);
         }
@@ -2962,6 +2962,10 @@ public class RdsService implements Resettable, ResourceProvider {
             case "postgres", "aurora-postgresql" -> DatabaseEngine.POSTGRES;
             case "mysql", "aurora-mysql", "aurora" -> DatabaseEngine.MYSQL;
             case "mariadb" -> DatabaseEngine.MARIADB;
+            case "sqlserver-ee" -> DatabaseEngine.SQLSERVER_EE;
+            case "sqlserver-se" -> DatabaseEngine.SQLSERVER_SE;
+            case "sqlserver-ex" -> DatabaseEngine.SQLSERVER_EX;
+            case "sqlserver-web" -> DatabaseEngine.SQLSERVER_WEB;
             default -> throw new AwsException("InvalidParameterValue", invalidParameterValueMessage(), 400);
         };
     }
@@ -2977,6 +2981,11 @@ public class RdsService implements Resettable, ResourceProvider {
             case MARIADB -> config.services().rds().defaultMariadbImage()
                     .orElseGet(() -> imageForRequestedVersion(
                             EmulatorConfig.RdsServiceConfig.DEFAULT_MARIADB_IMAGE, engineVersion));
+            // Metadata-only engines: no runnable container image exists. Reached
+            // only when FLOCI_SERVICES_RDS_MOCK=false; mock mode never asks.
+            case SQLSERVER_EE, SQLSERVER_SE, SQLSERVER_EX, SQLSERVER_WEB ->
+                    throw new AwsException("InvalidParameterValue",
+                            "SQL Server engines are metadata-only in floci; set FLOCI_SERVICES_RDS_MOCK=true.", 400);
         };
     }
 

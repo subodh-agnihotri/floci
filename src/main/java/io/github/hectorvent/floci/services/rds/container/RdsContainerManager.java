@@ -336,6 +336,9 @@ public class RdsContainerManager {
         return switch (engine) {
             case POSTGRES -> postgresDataPath(image);
             case MYSQL, MARIADB -> "/var/lib/mysql";
+            case SQLSERVER_EE, SQLSERVER_SE, SQLSERVER_EX, SQLSERVER_WEB ->
+                    throw new IllegalStateException(
+                            "SQL Server engines are metadata-only (FLOCI_SERVICES_RDS_MOCK)");
         };
     }
 
@@ -567,7 +570,7 @@ public class RdsContainerManager {
         // without needing caching_sha2_password RSA key exchange
         return switch (engine) {
             case MYSQL -> List.of("--default-authentication-plugin=mysql_native_password");
-            case POSTGRES, MARIADB -> List.of();
+            case POSTGRES, MARIADB, SQLSERVER_EE, SQLSERVER_SE, SQLSERVER_EX, SQLSERVER_WEB -> List.of();
         };
     }
 }

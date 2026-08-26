@@ -1197,7 +1197,7 @@ public class RdsQueryHandler {
 
     private String dbInstanceInnerXml(DbInstance i) {
         DbEndpoint ep = i.getEndpoint();
-        String engineStr = i.getEngine() != null ? i.getEngine().name() : "";
+        String engineStr = i.getEngine() != null ? i.getEngine().awsName() : "";
         String statusStr = i.getStatus() != null ? statusLabel(i.getStatus()) : "available";
 
         XmlBuilder xml = new XmlBuilder()
@@ -1290,7 +1290,7 @@ public class RdsQueryHandler {
         }
 
         String engine = instance.getEngine() != null
-                ? instance.getEngine().name().toLowerCase()
+                ? instance.getEngine().awsName()
                 : "unknown";
         return "default." + engine + dbEngineMajorVersion(instance);
     }
@@ -1298,7 +1298,7 @@ public class RdsQueryHandler {
     private static String dbEngineMajorVersion(DbInstance instance) {
         String engineVersion = instance.getEngineVersion();
         if ((engineVersion == null || engineVersion.isBlank()) && instance.getEngine() != null) {
-            engineVersion = defaultEngineVersion(instance.getEngine().name());
+            engineVersion = defaultEngineVersion(instance.getEngine().awsName());
         }
         if (engineVersion == null || engineVersion.isBlank()) {
             return "";
@@ -1549,7 +1549,7 @@ public class RdsQueryHandler {
             return name;
         }
         String engine = instance.getEngine() != null
-                ? instance.getEngine().name().toLowerCase()
+                ? instance.getEngine().awsName()
                 : "unknown";
         String majorVersion = optionGroupMajorVersion(instance);
         return majorVersion.isEmpty()
@@ -1560,7 +1560,7 @@ public class RdsQueryHandler {
     private static String optionGroupMajorVersion(DbInstance instance) {
         String engineVersion = instance.getEngineVersion();
         if ((engineVersion == null || engineVersion.isBlank()) && instance.getEngine() != null) {
-            engineVersion = defaultEngineVersion(instance.getEngine().name());
+            engineVersion = defaultEngineVersion(instance.getEngine().awsName());
         }
         String engine = instance.getEngine() == null ? null : instance.getEngine().name();
         return RdsService.optionGroupMajorVersion(engine, engineVersion);
@@ -1765,6 +1765,7 @@ public class RdsQueryHandler {
             case "postgres", "aurora-postgresql" -> "16.3";
             case "mysql", "aurora-mysql", "aurora" -> "8.0.36";
             case "mariadb" -> "11.2";
+            case "sqlserver-ee", "sqlserver-se", "sqlserver-ex", "sqlserver-web" -> "15.00.4430.1.v1";
             default -> "1.0";
         };
     }

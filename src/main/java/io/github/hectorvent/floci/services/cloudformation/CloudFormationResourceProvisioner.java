@@ -3332,7 +3332,7 @@ public class CloudFormationResourceProvisioner {
             throw incompleteSecretTarget(targetId);
         }
         return new SecretTargetConnection(
-                instance.getEngine().name().toLowerCase(Locale.ROOT),
+                instance.getEngine().awsName(),
                 instance.getEndpoint().address(),
                 instance.getEndpoint().port(),
                 instance.getDbName(),
@@ -3351,7 +3351,7 @@ public class CloudFormationResourceProvisioner {
             throw incompleteSecretTarget(targetId);
         }
         return new SecretTargetConnection(
-                cluster.getEngine().name().toLowerCase(Locale.ROOT),
+                cluster.getEngine().awsName(),
                 cluster.getEndpoint().address(),
                 cluster.getEndpoint().port(),
                 cluster.getDatabaseName(),
