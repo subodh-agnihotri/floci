@@ -29,6 +29,10 @@ class RdsDataConnectionFactory {
                     + "?useSSL=false&allowPublicKeyRetrieval=true";
             case POSTGRES -> "jdbc:postgresql://" + host + ":" + port + "/" + database
                     + "?sslmode=disable";
+            // Metadata-only engines: no backing database exists to connect to.
+            case SQLSERVER_EE, SQLSERVER_SE, SQLSERVER_EX, SQLSERVER_WEB ->
+                    throw new IllegalStateException(
+                            "SQL Server engines are metadata-only; the RDS Data API cannot execute against them");
         };
     }
 
@@ -37,6 +41,9 @@ class RdsDataConnectionFactory {
         return switch (engine) {
             case MYSQL, MARIADB -> "5000";
             case POSTGRES -> "5";
+            case SQLSERVER_EE, SQLSERVER_SE, SQLSERVER_EX, SQLSERVER_WEB ->
+                    throw new IllegalStateException(
+                            "SQL Server engines are metadata-only; the RDS Data API cannot execute against them");
         };
     }
 }

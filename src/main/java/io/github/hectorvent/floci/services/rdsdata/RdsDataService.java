@@ -395,6 +395,8 @@ public class RdsDataService implements Resettable {
         return switch (engine) {
             case MYSQL, MARIADB -> true;
             case POSTGRES -> false;
+            // Unreachable: the connection factory refuses metadata-only engines.
+            case SQLSERVER_EE, SQLSERVER_SE, SQLSERVER_EX, SQLSERVER_WEB -> false;
         };
     }
 
@@ -407,6 +409,8 @@ public class RdsDataService implements Resettable {
         return switch (engine) {
             case MYSQL, MARIADB -> true;
             case POSTGRES -> false;
+            // Unreachable: the connection factory refuses metadata-only engines.
+            case SQLSERVER_EE, SQLSERVER_SE, SQLSERVER_EX, SQLSERVER_WEB -> false;
         };
     }
 
