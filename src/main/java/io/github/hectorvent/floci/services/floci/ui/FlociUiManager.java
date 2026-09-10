@@ -115,7 +115,7 @@ public class FlociUiManager {
         String name = ContainerStorageHelper.dockerName(config, config.services().ui().containerName());
 
         Optional<Container> existing = lifecycleManager.findByName(name);
-        if (existing.isPresent()) {
+        if (existing.isPresent() && !recreateIfStale(existing.get(), name)) {
             adoptExisting(existing.get());
             return;
         }
@@ -283,6 +283,40 @@ public class FlociUiManager {
         } catch (Exception e) {
             return false;
         }
+    }
+
+    /**
+     * Removes an existing sidecar whose baked-in {@code FLOCI_ENDPOINT} no longer matches
+     * the endpoint Floci resolves now: the Floci container was recreated and got a new
+     * address, so an adopted UI would silently talk to whatever container owns the old
+     * IP today. Returns {@code true} when the container was stale and removed (the caller
+     * creates a fresh one); a failure to inspect falls back to plain adoption.
+     */
+    private boolean recreateIfStale(Container existing, String name) {
+        try {
+            String currentEndpoint = resolveFlociEndpoint();
+            Optional<String> spawnedFor = lifecycleManager.envValue(existing.getId(), "FLOCI_ENDPOINT");
+            if (!isStaleAdoption(spawnedFor, currentEndpoint)) {
+                return false;
+            }
+            LOG.infov("Existing floci-ui sidecar {0} was spawned for {1} but Floci is now at {2} — recreating",
+                    name, spawnedFor.orElse("<unset>"), currentEndpoint);
+            lifecycleManager.stopAndRemove(existing.getId(), null);
+            return true;
+        } catch (Exception e) {
+            LOG.warnv("Could not check existing floci-ui sidecar {0} for staleness ({1}) — adopting as-is",
+                    name, e.getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * A sidecar is stale when it carries a {@code FLOCI_ENDPOINT} different from the one
+     * Floci resolves now. A container without the variable is not one of ours to judge —
+     * it is adopted unchanged, as before.
+     */
+    static boolean isStaleAdoption(Optional<String> spawnedFor, String currentEndpoint) {
+        return spawnedFor.isPresent() && !spawnedFor.get().equals(currentEndpoint);
     }
 
     private void adoptExisting(Container existing) {

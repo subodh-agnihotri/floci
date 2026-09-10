@@ -178,4 +178,26 @@ class FlociUiManagerTest {
 
         assertEquals("https://host.docker.internal:4566", newManager().resolveFlociEndpoint());
     }
+
+    @Test
+    void sidecarWithDifferentSpawnEndpointIsStale() {
+        // The Floci container was recreated with a new address: the sidecar's
+        // baked-in FLOCI_ENDPOINT points at whatever owns the old IP today.
+        assertTrue(FlociUiManager.isStaleAdoption(
+                Optional.of("http://172.18.0.5:4566"), "http://172.18.0.8:4566"));
+    }
+
+    @Test
+    void sidecarWithMatchingSpawnEndpointIsAdopted() {
+        assertFalse(FlociUiManager.isStaleAdoption(
+                Optional.of("http://172.18.0.8:4566"), "http://172.18.0.8:4566"));
+    }
+
+    @Test
+    void sidecarWithoutSpawnEndpointIsAdoptedUnchanged() {
+        // Not one of ours to judge (e.g. a user-managed container) — keep the
+        // pre-existing adopt-as-is behavior.
+        assertFalse(FlociUiManager.isStaleAdoption(
+                Optional.empty(), "http://172.18.0.8:4566"));
+    }
 }
