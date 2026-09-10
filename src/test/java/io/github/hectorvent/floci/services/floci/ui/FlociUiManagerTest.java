@@ -184,13 +184,26 @@ class FlociUiManagerTest {
         // The Floci container was recreated with a new address: the sidecar's
         // baked-in FLOCI_ENDPOINT points at whatever owns the old IP today.
         assertTrue(FlociUiManager.isStaleAdoption(
-                Optional.of("http://172.18.0.5:4566"), "http://172.18.0.8:4566"));
+                java.util.List.of("FLOCI_ENDPOINT=http://172.18.0.5:4566", "AWS_REGION=us-east-1"),
+                java.util.List.of("FLOCI_ENDPOINT=http://172.18.0.8:4566", "AWS_REGION=us-east-1")));
     }
 
     @Test
-    void sidecarWithMatchingSpawnEndpointIsAdopted() {
+    void sidecarWithDifferentRegionIsStale() {
+        // Same address, changed region config: an adopted sidecar would keep
+        // browsing the old region.
+        assertTrue(FlociUiManager.isStaleAdoption(
+                java.util.List.of("FLOCI_ENDPOINT=http://172.18.0.5:4566", "AWS_REGION=us-east-1"),
+                java.util.List.of("FLOCI_ENDPOINT=http://172.18.0.5:4566", "AWS_REGION=eu-west-1")));
+    }
+
+    @Test
+    void sidecarWithMatchingInjectedEnvIsAdopted() {
+        // Extra container-runtime vars (PATH etc.) don't matter — only the
+        // injected entries must all be present.
         assertFalse(FlociUiManager.isStaleAdoption(
-                Optional.of("http://172.18.0.8:4566"), "http://172.18.0.8:4566"));
+                java.util.List.of("PATH=/usr/bin", "FLOCI_ENDPOINT=http://172.18.0.8:4566", "AWS_REGION=us-east-1"),
+                java.util.List.of("FLOCI_ENDPOINT=http://172.18.0.8:4566", "AWS_REGION=us-east-1")));
     }
 
     @Test
@@ -198,6 +211,7 @@ class FlociUiManagerTest {
         // Not one of ours to judge (e.g. a user-managed container) — keep the
         // pre-existing adopt-as-is behavior.
         assertFalse(FlociUiManager.isStaleAdoption(
-                Optional.empty(), "http://172.18.0.8:4566"));
+                java.util.List.of("PATH=/usr/bin"),
+                java.util.List.of("FLOCI_ENDPOINT=http://172.18.0.8:4566", "AWS_REGION=us-east-1")));
     }
 }

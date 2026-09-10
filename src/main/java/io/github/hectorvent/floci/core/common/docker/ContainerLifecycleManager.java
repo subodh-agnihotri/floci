@@ -466,27 +466,17 @@ public class ContainerLifecycleManager {
     }
 
     /**
-     * The value of one environment variable on an existing container, if set.
-     * Lets adopters validate a candidate container (e.g. the endpoint it was
-     * spawned for) before committing to {@link #adopt}.
+     * The environment of an existing container as {@code KEY=value} entries.
+     * Lets adopters validate a candidate container (e.g. the endpoint and
+     * region it was spawned for) before committing to {@link #adopt}.
      *
      * @param containerId the container to inspect
-     * @param key the environment variable name
-     * @return the value, or empty when the variable is not set
+     * @return the container's configured environment, empty when none
      */
-    public Optional<String> envValue(String containerId, String key) {
+    public List<String> containerEnv(String containerId) {
         InspectContainerResponse inspect = dockerClient.inspectContainerCmd(containerId).exec();
         String[] env = inspect.getConfig().getEnv();
-        if (env == null) {
-            return Optional.empty();
-        }
-        String prefix = key + "=";
-        for (String entry : env) {
-            if (entry.startsWith(prefix)) {
-                return Optional.of(entry.substring(prefix.length()));
-            }
-        }
-        return Optional.empty();
+        return env == null ? List.of() : List.of(env);
     }
 
     /**

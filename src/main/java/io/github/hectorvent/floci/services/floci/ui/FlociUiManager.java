@@ -286,21 +286,22 @@ public class FlociUiManager {
     }
 
     /**
-     * Removes an existing sidecar whose baked-in {@code FLOCI_ENDPOINT} no longer matches
-     * the endpoint Floci resolves now: the Floci container was recreated and got a new
-     * address, so an adopted UI would silently talk to whatever container owns the old
-     * IP today. Returns {@code true} when the container was stale and removed (the caller
-     * creates a fresh one); a failure to inspect falls back to plain adoption.
+     * Removes an existing sidecar whose baked-in environment no longer matches what this
+     * Floci instance would inject today: the Floci container was recreated with a new
+     * address (or a changed region), so an adopted UI would silently talk to whatever
+     * container owns the old IP — or browse the wrong region. Returns {@code true} when
+     * the container was stale and removed (the caller creates a fresh one); a failure to
+     * inspect falls back to plain adoption.
      */
     private boolean recreateIfStale(Container existing, String name) {
         try {
-            String currentEndpoint = resolveFlociEndpoint();
-            Optional<String> spawnedFor = lifecycleManager.envValue(existing.getId(), "FLOCI_ENDPOINT");
-            if (!isStaleAdoption(spawnedFor, currentEndpoint)) {
+            List<String> injected = injectedEnv();
+            List<String> containerEnv = lifecycleManager.containerEnv(existing.getId());
+            if (!isStaleAdoption(containerEnv, injected)) {
                 return false;
             }
-            LOG.infov("Existing floci-ui sidecar {0} was spawned for {1} but Floci is now at {2} — recreating",
-                    name, spawnedFor.orElse("<unset>"), currentEndpoint);
+            LOG.infov("Existing floci-ui sidecar {0} no longer matches the injected environment "
+                    + "(endpoint or region changed) — recreating", name);
             lifecycleManager.stopAndRemove(existing.getId(), null);
             return true;
         } catch (Exception e) {
@@ -311,12 +312,17 @@ public class FlociUiManager {
     }
 
     /**
-     * A sidecar is stale when it carries a {@code FLOCI_ENDPOINT} different from the one
-     * Floci resolves now. A container without the variable is not one of ours to judge —
-     * it is adopted unchanged, as before.
+     * A sidecar is stale when any entry Floci would inject today ({@code FLOCI_ENDPOINT},
+     * {@code AWS_REGION}, …) is missing from its environment. A container without a
+     * {@code FLOCI_ENDPOINT} at all is not one of ours to judge — it is adopted
+     * unchanged, as before.
      */
-    static boolean isStaleAdoption(Optional<String> spawnedFor, String currentEndpoint) {
-        return spawnedFor.isPresent() && !spawnedFor.get().equals(currentEndpoint);
+    static boolean isStaleAdoption(List<String> containerEnv, List<String> injectedEnv) {
+        boolean spawnedByUs = containerEnv.stream().anyMatch(e -> e.startsWith("FLOCI_ENDPOINT="));
+        if (!spawnedByUs) {
+            return false;
+        }
+        return injectedEnv.stream().anyMatch(e -> !containerEnv.contains(e));
     }
 
     private void adoptExisting(Container existing) {
