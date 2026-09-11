@@ -464,6 +464,8 @@ public class RdsService implements Resettable, ResourceProvider {
                 null, region, true);
     }
 
+    // Backwards-compatible overload: callers that do not care about automated-backup
+    // retention get the AWS CreateDBInstance default of 1 day.
     public DbInstance createDbInstance(String id, String engineParam, String engineVersion,
                                        String masterUsername, String masterPassword,
                                        String dbName, String dbInstanceClass,
@@ -477,6 +479,27 @@ public class RdsService implements Resettable, ResourceProvider {
                                        String optionGroupName,
                                        String region,
                                        boolean autoMinorVersionUpgrade) {
+        return createDbInstance(id, engineParam, engineVersion, masterUsername, masterPassword,
+                dbName, dbInstanceClass, allocatedStorage, iamEnabled, paramGroupName,
+                dbSubnetGroupName, dbClusterIdentifier, availabilityZone, multiAz,
+                manageMasterUserPassword, masterUserSecretKmsKeyId, tags, vpcSecurityGroupIds,
+                optionGroupName, region, autoMinorVersionUpgrade, 1);
+    }
+
+    public DbInstance createDbInstance(String id, String engineParam, String engineVersion,
+                                       String masterUsername, String masterPassword,
+                                       String dbName, String dbInstanceClass,
+                                       int allocatedStorage, boolean iamEnabled,
+                                       String paramGroupName, String dbSubnetGroupName,
+                                       String dbClusterIdentifier, String availabilityZone,
+                                       boolean multiAz, boolean manageMasterUserPassword,
+                                       String masterUserSecretKmsKeyId,
+                                       Map<String, String> tags,
+                                       List<String> vpcSecurityGroupIds,
+                                       String optionGroupName,
+                                       String region,
+                                       boolean autoMinorVersionUpgrade,
+                                       int backupRetentionPeriod) {
         String provisioningKey = "instance:" + currentAccountId() + ":"
                 + dbResourceKey(effectiveRegion(region), id);
         if (!provisioningIds.add(provisioningKey)) {
@@ -488,7 +511,8 @@ public class RdsService implements Resettable, ResourceProvider {
                     masterPassword, dbName, dbInstanceClass, allocatedStorage, iamEnabled,
                     paramGroupName, dbSubnetGroupName, dbClusterIdentifier, availabilityZone,
                     multiAz, manageMasterUserPassword, masterUserSecretKmsKeyId, tags,
-                    vpcSecurityGroupIds, optionGroupName, region, autoMinorVersionUpgrade);
+                    vpcSecurityGroupIds, optionGroupName, region, autoMinorVersionUpgrade,
+                    backupRetentionPeriod);
         } finally {
             provisioningIds.remove(provisioningKey);
         }
@@ -506,7 +530,8 @@ public class RdsService implements Resettable, ResourceProvider {
                                           List<String> vpcSecurityGroupIds,
                                           String optionGroupName,
                                           String region,
-                                          boolean autoMinorVersionUpgrade) {
+                                          boolean autoMinorVersionUpgrade,
+                                          int backupRetentionPeriod) {
         String effectiveRegion = effectiveRegion(region);
         String dbiResourceId = "db-" + java.util.UUID.randomUUID().toString()
                 .replace("-", "").substring(0, 24).toUpperCase();
@@ -608,6 +633,7 @@ public class RdsService implements Resettable, ResourceProvider {
         instance.setMultiAz(placement.multiAz());
         instance.setSubnetAvailabilityZones(placement.subnetAvailabilityZones());
         instance.setAutoMinorVersionUpgrade(autoMinorVersionUpgrade);
+        instance.setBackupRetentionPeriod(backupRetentionPeriod);
 
         instance.setDbiResourceId(dbiResourceId);
         instance.setDbInstanceArn(dbInstanceArn);

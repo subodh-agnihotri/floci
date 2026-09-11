@@ -140,6 +140,10 @@ public class RdsQueryHandler {
         // AWS defaults this to true when the request omits it - unlike most boolean flags here,
         // which default to false.
         boolean autoMinorVersionUpgrade = !"false".equalsIgnoreCase(params.getFirst("AutoMinorVersionUpgrade"));
+        // AWS default is 1 day when the request omits it; 0 means automated backups off.
+        String backupRetentionPeriodStr = params.getFirst("BackupRetentionPeriod");
+        int backupRetentionPeriod = backupRetentionPeriodStr != null
+                ? parseIntSafe(backupRetentionPeriodStr, 1) : 1;
 
         if (dbInstanceClass == null) {
             dbInstanceClass = "db.t3.micro";
@@ -154,7 +158,7 @@ public class RdsQueryHandler {
                     masterPassword, dbName, dbInstanceClass, allocatedStorage, iamEnabled,
                     paramGroupName, dbSubnetGroupName, dbClusterIdentifier, availabilityZone, multiAz,
                     manageMasterUserPassword, masterUserSecretKmsKeyId, tags, vpcSecurityGroupIds,
-                    optionGroupName, region, autoMinorVersionUpgrade);
+                    optionGroupName, region, autoMinorVersionUpgrade, backupRetentionPeriod);
             String result = dbInstanceXml(instance);
             return Response.ok(AwsQueryResponse.envelope("CreateDBInstance", AwsNamespaces.RDS, result)).build();
         } catch (AwsException e) {
@@ -1220,6 +1224,7 @@ public class RdsQueryHandler {
         xml.elem("IAMDatabaseAuthenticationEnabled", i.isIamDatabaseAuthenticationEnabled())
            .elem("MultiAZ", i.isMultiAz())
            .elem("AutoMinorVersionUpgrade", i.isAutoMinorVersionUpgrade())
+           .elem("BackupRetentionPeriod", i.getBackupRetentionPeriod())
            .elem("StorageType", "gp2")
            .elem("PubliclyAccessible", false)
            .elem("AvailabilityZone", i.getAvailabilityZone() != null ? i.getAvailabilityZone() : config.defaultAvailabilityZone())

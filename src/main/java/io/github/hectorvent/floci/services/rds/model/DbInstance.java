@@ -33,6 +33,8 @@ public class DbInstance {
     // AWS defaults this to true when CreateDBInstance omits it (minor engine upgrades are
     // applied automatically unless explicitly opted out).
     private boolean autoMinorVersionUpgrade = true;
+    // AWS defaults CreateDBInstance to 1 day of automated backups; 0 disables them.
+    private int backupRetentionPeriod = 1;
     private Map<String, String> subnetAvailabilityZones = new LinkedHashMap<>();
     private String dbiResourceId;
     private String dbInstanceArn;
@@ -140,6 +142,11 @@ public class DbInstance {
     public boolean isAutoMinorVersionUpgrade() { return autoMinorVersionUpgrade; }
     public void setAutoMinorVersionUpgrade(boolean autoMinorVersionUpgrade) {
         this.autoMinorVersionUpgrade = autoMinorVersionUpgrade;
+    }
+
+    public int getBackupRetentionPeriod() { return backupRetentionPeriod; }
+    public void setBackupRetentionPeriod(int backupRetentionPeriod) {
+        this.backupRetentionPeriod = backupRetentionPeriod;
     }
 
     public Map<String, String> getSubnetAvailabilityZones() { return subnetAvailabilityZones; }
