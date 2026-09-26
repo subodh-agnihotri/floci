@@ -2,6 +2,7 @@ package io.github.hectorvent.floci.services.cloudformation;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.MissingNode;
 import com.fasterxml.jackson.databind.node.TextNode;
 import io.github.hectorvent.floci.core.common.AwsException;
 import org.jboss.logging.Logger;
@@ -120,29 +121,60 @@ public class CloudFormationTemplateEngine {
             return node;
         }
         if (node.isObject()) {
+            // Fn::If is resolved NODE-level: its branches may be whole objects or lists
+            // (e.g. a conditional inline policy in AWS::IAM::Role Policies), which the
+            // scalar path below would collapse into meaningless text. The taken branch is
+            // resolved recursively; a branch of {"Ref": "AWS::NoValue"} removes the value
+            // (missing node), which containers below drop — CloudFormation semantics.
+            if (node.has("Fn::If")) {
+                JsonNode ifNode = node.get("Fn::If");
+                if (ifNode.isArray() && ifNode.size() >= 3) {
+                    boolean condValue = conditions.getOrDefault(ifNode.get(0).asText(), false);
+                    return resolveNode(condValue ? ifNode.get(1) : ifNode.get(2));
+                }
+                return MissingNode.getInstance();
+            }
+            if (isNoValueRef(node)) {
+                return MissingNode.getInstance();
+            }
             if (node.has("Ref") || node.has("Fn::Sub") || node.has("Fn::Join") ||
-                    node.has("Fn::Select") || node.has("Fn::If") || node.has("Fn::Base64") ||
+                    node.has("Fn::Select") || node.has("Fn::Base64") ||
                     node.has("Fn::GetAtt") || node.has("Fn::ImportValue") || node.has("Fn::Split") ||
                     node.has("Fn::GetAZs") || node.has("Fn::Cidr") || node.has("Fn::FindInMap")) {
                 return TextNode.valueOf(resolve(node));
             }
-            // Plain object — resolve each field
+            // Plain object — resolve each field; a field whose value resolves to
+            // AWS::NoValue is omitted, not serialized as null.
             var resolved = objectMapper.createObjectNode();
             Iterator<Map.Entry<String, JsonNode>> fields = node.fields();
             while (fields.hasNext()) {
                 var entry = fields.next();
-                resolved.set(entry.getKey(), resolveNode(entry.getValue()));
+                JsonNode value = resolveNode(entry.getValue());
+                if (value != null && !value.isMissingNode()) {
+                    resolved.set(entry.getKey(), value);
+                }
             }
             return resolved;
         }
         if (node.isArray()) {
+            // An element that resolves to AWS::NoValue is removed from the list —
+            // how CloudFormation drops conditional list entries.
             var arr = objectMapper.createArrayNode();
             for (JsonNode item : node) {
-                arr.add(resolveNode(item));
+                JsonNode value = resolveNode(item);
+                if (value != null && !value.isMissingNode()) {
+                    arr.add(value);
+                }
             }
             return arr;
         }
         return node;
+    }
+
+    /** True for the literal {@code {"Ref": "AWS::NoValue"}} node. */
+    private static boolean isNoValueRef(JsonNode node) {
+        return node.size() == 1 && node.has("Ref")
+                && "AWS::NoValue".equals(node.get("Ref").asText());
     }
 
     /**

@@ -88,4 +88,45 @@ class CloudFormationTemplateEngineTest {
         assertNull(engine().resolveJsonAttribute(json("null")));
         assertNull(engine().resolveJsonAttribute(mapper.createArrayNode().path("nope")));
     }
+
+    private CloudFormationTemplateEngine engineWithCondition(String name, boolean value) {
+        return new CloudFormationTemplateEngine("000000000000", "us-east-1", "my-stack",
+                "stack/id", Map.of(), Map.of(), Map.of(), Map.of(name, value), Map.of(), mapper,
+                (Function<String, String>) n -> null);
+    }
+
+    @Test
+    void resolveNodeKeepsObjectShapedIfBranch() {
+        // A whole-object Fn::If branch (e.g. a conditional inline policy in
+        // AWS::IAM::Role Policies) must stay an object — the scalar path used to
+        // collapse it into meaningless text.
+        JsonNode resolved = engineWithCondition("HasCmk", true).resolveNode(json(
+                "{\"Fn::If\": [\"HasCmk\", {\"PolicyName\": \"CmkGrant\"}, {\"Ref\": \"AWS::NoValue\"}]}"));
+        assertEquals("CmkGrant", resolved.get("PolicyName").asText());
+    }
+
+    @Test
+    void resolveNodeDropsNoValueListElements() {
+        // CloudFormation removes a list element whose Fn::If resolves to AWS::NoValue.
+        JsonNode resolved = engineWithCondition("HasCmk", false).resolveNode(json(
+                "[{\"PolicyName\": \"Base\"}, {\"Fn::If\": [\"HasCmk\", {\"PolicyName\": \"CmkGrant\"}, {\"Ref\": \"AWS::NoValue\"}]}]"));
+        assertEquals(1, resolved.size());
+        assertEquals("Base", resolved.get(0).get("PolicyName").asText());
+    }
+
+    @Test
+    void resolveNodeOmitsNoValueObjectFields() {
+        // A property whose value resolves to AWS::NoValue is omitted, not null.
+        JsonNode resolved = engineWithCondition("HasCmk", false).resolveNode(json(
+                "{\"Keep\": \"x\", \"Drop\": {\"Fn::If\": [\"HasCmk\", \"y\", {\"Ref\": \"AWS::NoValue\"}]}}"));
+        assertEquals("x", resolved.get("Keep").asText());
+        assertEquals(1, resolved.size());
+    }
+
+    @Test
+    void resolveNodeScalarIfBranchStaysScalar() {
+        JsonNode resolved = engineWithCondition("HasCmk", true).resolveNode(json(
+                "{\"Fn::If\": [\"HasCmk\", \"yes\", \"no\"]}"));
+        assertEquals("yes", resolved.asText());
+    }
 }

@@ -147,7 +147,10 @@ public class IamRoleCfnProvisioner implements CfnResourceProvisioner {
             // the created role, its managed attachments and any earlier inline writes behind,
             // because rollback only deletes resources that reached CREATE_COMPLETE.
             if (props != null && props.has("Policies")) {
-                for (JsonNode policy : props.get("Policies")) {
+                // Resolve the list before iterating: an element may be a whole-object
+                // Fn::If (conditional inline policy) whose AWS::NoValue branch removes
+                // it — the raw node has no PolicyName and used to fail the create.
+                for (JsonNode policy : ctx.engine().resolveNode(props.get("Policies"))) {
                     String declaredName = ctx.resolveOptional(policy, "PolicyName");
                     if (declaredName == null || declaredName.isBlank()) {
                         // PolicyName is a required property of AWS::IAM::Role Policies. Generating
