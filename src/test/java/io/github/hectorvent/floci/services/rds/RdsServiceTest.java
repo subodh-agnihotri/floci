@@ -996,8 +996,10 @@ class RdsServiceTest {
                 "admin", "password", "dbname", false, null);
 
         assertEquals(DbInstanceStatus.AVAILABLE, cluster.getStatus());
-        assertEquals("localhost", cluster.getEndpoint().address());
-        assertTrue(cluster.getEndpoint().port() > 0);
+        // Mock mode fabricates an RDS-shaped name on the engine default port; the old
+        // "localhost:<allocated-port>" leaked into consumers as a dialable endpoint.
+        assertEquals("cluster1.local.us-east-1.rds.amazonaws.com", cluster.getEndpoint().address());
+        assertEquals(5432, cluster.getEndpoint().port());
         assertNull(cluster.getContainerId());
         verify(containerManager, never()).start(any(), any(), any(), any(), any(), any(), any(), any(), any());
         verify(proxyManager, never()).startProxy(any(), any(), anyBoolean(), anyInt(), any(), anyInt(),
@@ -1228,7 +1230,7 @@ class RdsServiceTest {
                 0, false, null, null, "cluster1");
 
         assertEquals(DbInstanceStatus.AVAILABLE, instance.getStatus());
-        assertEquals("localhost", instance.getEndpoint().address());
+        assertEquals("inst1.local.us-east-1.rds.amazonaws.com", instance.getEndpoint().address());
         // No Docker volume name may be persisted: the mock cluster has a null volume id, so the
         // fallback would fabricate a name that a later non-mock restore could try to reference.
         assertNull(instance.getDockerVolumeName());
@@ -1276,7 +1278,7 @@ class RdsServiceTest {
     }
 
     @Test
-    void mockModeAssignsDistinctEndpointPorts() {
+    void mockModeAssignsDistinctEndpointAddresses() {
         when(config.services().rds().mock()).thenReturn(true);
 
         DbCluster a = rdsService.createDbCluster("cluster-a", "aurora-postgresql", "16.3",
@@ -1284,7 +1286,10 @@ class RdsServiceTest {
         DbCluster b = rdsService.createDbCluster("cluster-b", "aurora-postgresql", "16.3",
                 "admin", "password", "dbname", false, null);
 
-        assertNotEquals(a.getEndpoint().port(), b.getEndpoint().port());
+        // Same engine, same default port — distinctness now lives in the DNS name,
+        // as it does on real RDS.
+        assertNotEquals(a.getEndpoint().address(), b.getEndpoint().address());
+        assertEquals(a.getEndpoint().port(), b.getEndpoint().port());
     }
 
     @Test

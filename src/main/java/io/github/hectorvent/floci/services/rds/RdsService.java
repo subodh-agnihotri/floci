@@ -613,7 +613,7 @@ public class RdsService implements Resettable, ResourceProvider {
             }
         }
 
-        DbEndpoint endpoint = mock ? new DbEndpoint("localhost", proxyPort) : proxyEndpoint(proxyPort);
+        DbEndpoint endpoint = mock ? mockEndpoint(id, engine, effectiveRegion) : proxyEndpoint(proxyPort);
         DbInstance instance = new DbInstance(id, engine, engineVersion, masterUsername, masterPassword,
                 dbName, dbInstanceClass, allocatedStorage, DbInstanceStatus.AVAILABLE,
                 endpoint, iamEnabled, paramGroupName, dbClusterIdentifier, Instant.now(), proxyPort);
@@ -1258,7 +1258,7 @@ public class RdsService implements Resettable, ResourceProvider {
         // Always reserve a unique port (even in mock) so endpoints stay distinct and usedPorts
         // is consistent; mock mode only skips starting the container and auth proxy.
         int proxyPort = allocateProxyPort();
-        DbEndpoint endpoint = mock ? new DbEndpoint("localhost", proxyPort) : proxyEndpoint(proxyPort);
+        DbEndpoint endpoint = mock ? mockEndpoint(id, engine, effectiveRegion) : proxyEndpoint(proxyPort);
         DbCluster cluster = new DbCluster(id, engine, engineVersion, masterUsername, masterPassword,
                 databaseName, DbInstanceStatus.AVAILABLE, endpoint, endpoint,
                 iamEnabled, new ArrayList<>(), paramGroupName, Instant.now(), proxyPort);
@@ -3146,6 +3146,20 @@ public class RdsService implements Resettable, ResourceProvider {
         usedPorts.remove(port);
     }
 
+    /**
+     * Mock-mode endpoint: an RDS-shaped DNS name on the engine's default port,
+     * {@code <identifier>.local.<region>.rds.amazonaws.com}. No proxy listens in mock
+     * mode, so the previously fabricated {@code localhost:<allocated-port>} was
+     * meaningless — and it leaked into every consumer that treats DescribeDBInstances
+     * output as the real endpoint. The {@code .local.} name is stable, obviously
+     * synthetic, and resolvable in the operator's environment when a stand-in
+     * database container is given that DNS alias.
+     */
+    private static DbEndpoint mockEndpoint(String identifier, DatabaseEngine engine, String region) {
+        return new DbEndpoint(identifier + ".local." + region + ".rds.amazonaws.com",
+                engine.defaultPort());
+    }
+
     private DbEndpoint proxyEndpoint(int proxyPort) {
         Optional<String> endpointHost = config.services().rds().endpointHost()
                 .filter(host -> !host.isBlank());
@@ -3835,8 +3849,10 @@ public class RdsService implements Resettable, ResourceProvider {
                 portReserved = true;
                 cluster.setProxyPort(proxyPort);
                 if (config.services().rds().mock()) {
-                    cluster.setEndpoint(new DbEndpoint("localhost", proxyPort));
-                    cluster.setReaderEndpoint(new DbEndpoint("localhost", proxyPort));
+                    DbEndpoint restoredEndpoint = mockEndpoint(
+                            cluster.getDbClusterIdentifier(), cluster.getEngine(), clusterRegion);
+                    cluster.setEndpoint(restoredEndpoint);
+                    cluster.setReaderEndpoint(restoredEndpoint);
                     cluster.setStatus(DbInstanceStatus.AVAILABLE);
                     putClusterForScope(accountId, clusterRegion,
                             cluster.getDbClusterIdentifier(), cluster);
@@ -3935,7 +3951,8 @@ public class RdsService implements Resettable, ResourceProvider {
                 portReserved = true;
                 instance.setProxyPort(proxyPort);
                 if (config.services().rds().mock()) {
-                    instance.setEndpoint(new DbEndpoint("localhost", proxyPort));
+                    instance.setEndpoint(mockEndpoint(
+                            instance.getDbInstanceIdentifier(), instance.getEngine(), instanceRegion));
                     instance.setStatus(DbInstanceStatus.AVAILABLE);
                     putInstanceForScope(accountId, instanceRegion,
                             instance.getDbInstanceIdentifier(), instance);
